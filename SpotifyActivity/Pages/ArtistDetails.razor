@@ -1,0 +1,104 @@
+﻿@page "/artistdetails/{artistId}"
+@using System.Net.Http
+@using Newtonsoft.Json
+@using System.Collections.Generic
+@using System.Globalization
+@inject IJSRuntime JSRuntime
+
+<h3>Artist Details</h3>
+
+@if (artist != null)
+{
+    <div>
+        <img src="@artist.Images[0].URL" style="width:400px;height:400px;"/>
+
+        <p><strong>Name:</strong> @artist.Name</p>
+        <p><strong>Genres:</strong> @string.Join(", ", artist.Genres)</p>
+        <p><strong>Popularity:</strong> @artist.Popularity</p>
+        <p><strong>Followers:</strong> @artist.Followers.Total</p>
+    </div>
+}
+else
+{
+    if (string.IsNullOrEmpty(accessToken))
+    {
+        <p>You must log in to view this data.</p>
+    } else
+    {
+        <p>Loading data</p>
+    }
+}
+
+@code {
+    private ArtistInfo artist;
+    private string accessToken;
+
+    [Parameter]
+    public string ArtistId { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            accessToken = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "accessToken");
+
+            if (!string.IsNullOrEmpty(ArtistId))
+            {
+                await GetArtistInfo(ArtistId);
+            }
+        }
+        catch (Exception error)
+        {
+            Console.WriteLine(error);
+        }
+    }
+
+    private async Task GetArtistInfo(string artistId)
+    {
+        try
+        {
+            using (var client = new HttpClient())
+            {
+                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {accessToken}");
+                var artistResponse = await client.GetAsync($"https://api.spotify.com/v1/artists/{artistId}");
+
+                if (artistResponse.IsSuccessStatusCode)
+                {
+                    var artistContent = await artistResponse.Content.ReadAsStringAsync();
+                    artist = JsonConvert.DeserializeObject<ArtistInfo>(artistContent);
+                }
+                else
+                {
+                    artist = null;
+                    Console.WriteLine($"Failed to retrieve artist information. Status code: {artistResponse.StatusCode}");
+                }
+            }
+        }
+        catch (Exception error)
+        {
+            Console.WriteLine(error);
+        }
+    }
+
+    private class ArtistInfo
+    {
+        public string Name { get; set; }
+        public List<string>? Genres { get; set; }
+        public double Popularity { get; set; }
+        public FollowersInfo Followers { get; set; } 
+        public List<ImagesInfo> Images { get; set; }
+    }
+
+    private class FollowersInfo
+    {
+        public string Href { get; set; }
+        public string Total { get; set; }
+    }
+
+    private class ImagesInfo
+    {
+        public string URL { get; set; }
+        public Double Height { get; set; }
+        public Double Width { get; set; }
+    }
+}

@@ -1,0 +1,122 @@
+﻿@page "/login"
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+@using System.Web
+@using System.Net.Http
+@using Newtonsoft.Json
+@using System.Text
+
+<h3>Spotify Authentication</h3>
+
+@if (authenticatedUser != null)
+{
+    NavigationManager.NavigateTo("/account");
+} else {
+    <button @onclick="Authenticate">Login to Spotify</button>
+}
+
+@code {
+    private string authorizationUrl;
+    private SpotifyUser authenticatedUser;
+    private string tokenEndpoint = "https://accounts.spotify.com/api/token";
+    private string userProfileEndpoint = "https://api.spotify.com/v1/me";
+
+    private string accessToken;
+    private string error;
+
+    private async Task Authenticate()
+    {
+        try
+        {
+            string clientId = "080b5b69b8a848f59f1d338e5933d960";
+            string redirectUri = "https://localhost:7067/account";
+
+            string authorizationEndpoint = "https://accounts.spotify.com/authorize";
+            string tokenEndpoint = "https://accounts.spotify.com/api/token";
+
+            string scopes = "user-read-private user-read-email user-read-recently-played user-library-read user-top-read"; // Add more scopes as needed
+
+            authorizationUrl = $"{authorizationEndpoint}?client_id={clientId}&redirect_uri={HttpUtility.UrlEncode(redirectUri)}&response_type=code&scope={HttpUtility.UrlEncode(scopes)}";
+
+            NavigationManager.NavigateTo(authorizationUrl);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            error = $"Error in Authenticate: {ex.Message}";
+            Console.WriteLine(error);
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            accessToken = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "accessToken");
+
+            if (string.IsNullOrEmpty(accessToken))
+            {
+                var uri = NavigationManager.ToAbsoluteUri(NavigationManager.Uri);
+
+                var queryParameters = HttpUtility.ParseQueryString(uri.Query);
+                if (queryParameters.HasKeys() && queryParameters.Get("code") is string code)
+                {
+                    await ExchangeCodeForAccessToken(code);
+                }
+            }
+            else
+            {
+                NavigationManager.NavigateTo("/account");
+            }
+        }
+        catch (Exception ex)
+        {
+            error = $"Error in OnInitializedAsync: {ex.Message}";
+            Console.WriteLine(error);
+        }
+    }
+
+    private async Task ExchangeCodeForAccessToken(string authorizationCode)
+    {
+        try
+        {
+            string clientId = "080b5b69b8a848f59f1d338e5933d960";
+            string clientSecret = "21afe1ea417246acb52979077bbdf770";
+            string redirectUri = "https://localhost:7067/account";
+
+            using (var client = new HttpClient())
+            {
+                var tokenRequest = new Dictionary<string, string>
+                {
+                    { "grant_type", "authorization_code" },
+                    { "client_id", clientId },
+                    { "client_secret", clientSecret },
+                    { "redirect_uri", redirectUri },
+                    { "code", authorizationCode }
+                };
+
+                var tokenResponse = await client.PostAsync(tokenEndpoint, new FormUrlEncodedContent(tokenRequest));
+                var tokenContent = await tokenResponse.Content.ReadAsStringAsync();
+                accessToken = JsonConvert.DeserializeObject<AccessTokenResponse>(tokenContent)?.access_token;
+
+                await JSRuntime.InvokeVoidAsync("localStorage.setItem", "accessToken", accessToken);
+            }
+        }
+        catch (Exception ex)
+        {
+            error = $"Error in ExchangeCodeForAccessToken: {ex.Message}";
+            Console.WriteLine(error);
+        }
+    }
+
+    private class AccessTokenResponse
+    {
+        public string access_token { get; set; }
+    }
+
+    private class SpotifyUser
+    {
+        public string Id { get; set; }
+        public string DisplayName { get; set; }
+        public string Email { get; set; }    }
+}

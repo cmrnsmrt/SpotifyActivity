@@ -1,0 +1,152 @@
+﻿@page "/account"
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+@using System.Web
+@using System.Net.Http
+@using Newtonsoft.Json
+@using System.Text
+
+<h3>Your Spotify Account Details</h3>
+
+@if (authenticatedUser != null)
+{
+    <div>
+        <h4>User Information</h4>
+        <p><strong>Display Name:</strong> @authenticatedUser.DisplayName</p>
+        <p><strong>Email:</strong> @authenticatedUser.Email</p>
+        <p><strong>Spotify ID:</strong> @authenticatedUser.Id</p>
+    </div>
+    
+    <button @onclick="Logout">Logout</button>
+}
+else
+{
+    
+}
+
+@code {
+    private string authorizationUrl;
+    private SpotifyUser authenticatedUser;
+    private string tokenEndpoint = "https://accounts.spotify.com/api/token";
+    private string userProfileEndpoint = "https://api.spotify.com/v1/me";
+
+    private string accessToken;
+    private string error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            accessToken = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "accessToken");
+
+            if (string.IsNullOrEmpty(accessToken))
+            {
+                var uri = NavigationManager.ToAbsoluteUri(NavigationManager.Uri);
+
+                var queryParameters = HttpUtility.ParseQueryString(uri.Query);
+                if (queryParameters.HasKeys() && queryParameters.Get("code") is string code)
+                {
+                    await ExchangeCodeForAccessToken(code);
+                }
+            }
+            else
+            {
+                await GetUserProfile();
+            }
+        }
+        catch (Exception ex)
+        {
+            error = $"Error in OnInitializedAsync: {ex.Message}";
+            Console.WriteLine(error);
+        }
+    }
+
+    private async Task ExchangeCodeForAccessToken(string authorizationCode)
+    {
+        try
+        {
+            string clientId = "080b5b69b8a848f59f1d338e5933d960";
+            string clientSecret = "21afe1ea417246acb52979077bbdf770";
+            string redirectUri = "https://localhost:7067/account";
+
+            using (var client = new HttpClient())
+            {
+                var tokenRequest = new Dictionary<string, string>
+                {
+                    { "grant_type", "authorization_code" },
+                    { "client_id", clientId },
+                    { "client_secret", clientSecret },
+                    { "redirect_uri", redirectUri },
+                    { "code", authorizationCode }
+                };
+
+                var tokenResponse = await client.PostAsync(tokenEndpoint, new FormUrlEncodedContent(tokenRequest));
+                var tokenContent = await tokenResponse.Content.ReadAsStringAsync();
+                accessToken = JsonConvert.DeserializeObject<AccessTokenResponse>(tokenContent)?.access_token;
+
+                await JSRuntime.InvokeVoidAsync("localStorage.setItem", "accessToken", accessToken);
+
+                if (!string.IsNullOrEmpty(accessToken))
+                {
+                    await GetUserProfile();
+                }
+                else
+                {
+                    authenticatedUser = null;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            error = $"Error in ExchangeCodeForAccessToken: {ex.Message}";
+            Console.WriteLine(error);
+        }
+    }
+
+    private async Task GetUserProfile()
+    {
+        try
+        {
+            using (var client = new HttpClient())
+            {
+                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {accessToken}");
+                var userProfileResponse = await client.GetAsync(userProfileEndpoint);
+
+                if (userProfileResponse.IsSuccessStatusCode)
+                {
+                    var userProfileContent = await userProfileResponse.Content.ReadAsStringAsync();
+                    authenticatedUser = JsonConvert.DeserializeObject<SpotifyUser>(userProfileContent);
+                }
+                else
+                {
+                    authenticatedUser = null;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            error = $"Error in GetUserProfile: {ex.Message}";
+            Console.WriteLine(error);
+        }
+    }
+
+    private async Task Logout()
+    {
+        await JSRuntime.InvokeVoidAsync("localStorage.removeItem", "accessToken");
+        authenticatedUser = null;
+        StateHasChanged();
+        NavigationManager.NavigateTo("/login");
+    }
+
+    private class AccessTokenResponse
+    {
+        public string access_token { get; set; }
+    }
+
+    private class SpotifyUser
+    {
+        public string Id { get; set; }
+        public string DisplayName { get; set; }
+        public string Email { get; set; }
+    }
+}

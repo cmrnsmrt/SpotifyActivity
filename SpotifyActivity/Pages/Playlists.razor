@@ -1,0 +1,149 @@
+﻿@page "/playlists"
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+@using System.Net.Http
+@using Newtonsoft.Json
+@using System.Text
+
+<h1>Your Playlists</h1>
+
+@if (playlists != null)
+{
+    foreach (var playlist in playlists.items)
+    {
+        <div>
+            <h4>@playlist.name</h4>
+            <iframe style="border-radius: 12px" src="https://open.spotify.com/embed/playlist/@playlist.id?utm_source=generator" width="100%" height="152" frameBorder="0" allowfullscreen="true" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>
+        </div>
+    }
+}
+else
+{
+    if (string.IsNullOrEmpty(accessToken))
+    {
+        <p>You must log in to view this data.</p>
+    } else
+    {
+        <p>Loading data</p>
+    }
+}
+
+@code {
+    private PlaylistsResponse playlists;
+    private string userId;
+    private string playlistsEndpoint = "https://api.spotify.com/v1/me/playlists";
+
+    private string accessToken;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            accessToken = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "accessToken");
+
+            if (!string.IsNullOrEmpty(accessToken))
+            {
+                await GetUserPlaylists();
+            }
+            else
+            {
+                Console.WriteLine("Access token not found in localStorage.");
+            }
+        }
+        catch (Exception error)
+        {
+            Console.WriteLine(error);
+        }
+    }
+
+    private async Task GetUserPlaylists()
+    {
+        try
+        {
+            using (var client = new HttpClient())
+            {
+                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {accessToken}");
+                var playlistsResponse = await client.GetAsync(playlistsEndpoint);
+
+                if (playlistsResponse.IsSuccessStatusCode)
+                {
+                    var playlistsContent = await playlistsResponse.Content.ReadAsStringAsync();
+                    playlists = JsonConvert.DeserializeObject<PlaylistsResponse>(playlistsContent);
+                }
+                else
+                {
+                    playlists = null;
+                    Console.WriteLine($"Failed to retrieve playlists. Status code: {playlistsResponse.StatusCode}");
+                }
+            }
+        }
+        catch (Exception error)
+        {
+            Console.WriteLine(error);
+        }
+    }
+
+    public class PlaylistsResponse
+    {
+        public string href { get; set; }
+        public int limit { get; set; }
+        public string next { get; set; }
+        public int offset { get; set; }
+        public string previous { get; set; }
+        public int total { get; set; }
+        public List<PlaylistItem> items { get; set; }
+    }
+
+    public class PlaylistItem
+    {
+        public bool collaborative { get; set; }
+        public string description { get; set; }
+        public ExternalUrls external_urls { get; set; }
+        public string href { get; set; }
+        public string id { get; set; }
+        public List<Image> images { get; set; }
+        public string name { get; set; }
+        public Owner owner { get; set; }
+        public bool @public { get; set; }
+        public string snapshot_id { get; set; }
+        public TracksInfo tracks { get; set; }
+        public string type { get; set; }
+        public string uri { get; set; }
+    }
+
+    public class ExternalUrls
+    {
+        public string spotify { get; set; }
+    }
+
+    public class Image
+    {
+        public string url { get; set; }
+        public int? height { get; set; }
+        public int? width { get; set; }
+    }
+
+    public class Owner
+    {
+        public ExternalUrls external_urls { get; set; }
+        public Followers followers { get; set; }
+        public string href { get; set; }
+        public string id { get; set; }
+        public string type { get; set; }
+        public string uri { get; set; }
+        public string display_name { get; set; }
+    }
+
+    public class Followers
+    {
+        public string href { get; set; }
+        public int total { get; set; }
+    }
+
+    public class TracksInfo
+    {
+        public string href { get; set; }
+        public int total { get; set; }
+    }
+
+}

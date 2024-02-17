@@ -1,0 +1,135 @@
+﻿@page "/artist"
+@using System.Net.Http
+@using Newtonsoft.Json
+@using System.Collections.Generic
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+
+<h3>Search for Artist</h3>
+
+<div>
+    <input type="text" @bind="searchQuery" @oninput="OnSearchInputChange" placeholder="Enter artist name" />
+    @*<button @onclick="SearchArtist">Search</button>*@
+</div>
+
+@if (artists != null)
+{
+    <div>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Artist</th>
+                    <th>Genres</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var artist in artists)
+                {
+                    <tr>
+                        <td><a href="artistdetails/@artist.Id">@artist.Name</a></td>
+                        <td>@string.Join(", ", artist.Genres)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+else if (searched)
+{
+    <p>You must log in to view this data</p>
+}
+
+@code {
+    private bool searched = false;
+    private List<ArtistInfo> artists;
+    private string searchQuery = string.Empty;
+    private string searchEndpoint = "https://api.spotify.com/v1/search?type=artist";
+
+    private string accessToken;
+    private System.Threading.Timer searchTimer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            accessToken = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "accessToken");
+        }
+        catch (Exception error)
+        {
+            Console.WriteLine(error);
+        }
+    }
+
+    private void OnSearchInputChange(ChangeEventArgs e)
+    {
+        searched = false;
+        searchQuery = e.Value.ToString();
+
+        // Reset the timer whenever the user types
+        searchTimer?.Change(500, System.Threading.Timeout.Infinite);
+        searchTimer = new System.Threading.Timer(async _ =>
+        {
+            await SearchArtist();
+            StateHasChanged();
+        }, null, 500, System.Threading.Timeout.Infinite);
+    }
+
+    private async Task SearchArtist()
+    {
+        searched = true;
+        try
+        {
+            if (!string.IsNullOrEmpty(searchQuery))
+            {
+                using (var client = new HttpClient())
+                {
+                    client.DefaultRequestHeaders.Add("Authorization", $"Bearer {accessToken}");
+                    var searchResponse = await client.GetAsync($"{searchEndpoint}&q={searchQuery}");
+
+                    if (searchResponse.IsSuccessStatusCode)
+                    {
+                        var searchContent = await searchResponse.Content.ReadAsStringAsync();
+                        var searchResult = JsonConvert.DeserializeObject<SearchResult>(searchContent);
+
+                        if (searchResult != null && searchResult.Artists != null)
+                        {
+                            artists = searchResult.Artists.Items;
+                        }
+                        else
+                        {
+                            artists = null;
+                        }
+                    }
+                    else
+                    {
+                        artists = null;
+                        Console.WriteLine($"Failed to retrieve artist information. Status code: {searchResponse.StatusCode}");
+                    }
+                }
+            }
+        }
+        catch (Exception error)
+        {
+            Console.WriteLine(error);
+        }
+    }
+
+    private class SearchResult
+    {
+        [JsonProperty("artists")]
+        public ArtistList Artists { get; set; }
+    }
+
+    private class ArtistList
+    {
+        [JsonProperty("items")]
+        public List<ArtistInfo> Items { get; set; }
+    }
+
+    private class ArtistInfo
+    {
+        public string Id { get; set; }
+        public string Name { get; set; }
+        public List<string>? Genres { get; set; }
+    }
+}

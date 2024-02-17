@@ -1,0 +1,71 @@
+﻿<!-- NavMenu.razor -->
+@inject IJSRuntime JSRuntime
+@inject NavigationManager NavigationManager
+
+<div class="top-row ps-3 navbar navbar-dark">
+    <!-- ... Navbar content ... -->
+</div>
+
+<div class="@NavMenuCssClass" @onclick="ToggleNavMenu">
+    <nav class="flex-column">
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                <span class="oi oi-home" aria-hidden="true"></span> Home
+            </NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="login">
+                <span class="oi oi-lock-locked" aria-hidden="true"></span> Account
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="AllTime">
+                <span class="oi oi-calendar" aria-hidden="true"></span> All Time
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="LastMonth">
+                <spans class="oi oi-calendar" aria-hidden="true"></spans> Last Month
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="Artist">
+                <spans class="oi oi-microphone" aria-hidden="true"></spans> Search Artists
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="Playlists">
+                <spans class="oi oi-musical-note" aria-hidden="true"></spans> Your Playlists
+            </NavLink>
+        </div>
+    </nav>
+</div>
+
+@code {
+    private bool collapseNavMenu = true;
+    private string accessToken;
+
+    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
+
+    private void ToggleNavMenu()
+    {
+        collapseNavMenu = !collapseNavMenu;
+    }
+
+    // Retrieve access token from localStorage
+    protected override async Task OnInitializedAsync()
+    {
+        accessToken = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "accessToken");
+        StateHasChanged();
+
+    }
+
+    protected override void OnParametersSet()
+    {
+        StateHasChanged();
+    }
+}

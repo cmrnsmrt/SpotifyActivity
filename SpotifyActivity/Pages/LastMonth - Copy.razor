@@ -1,0 +1,129 @@
+﻿@page "/LastMonth"
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+@using System.Net.Http
+@using Newtonsoft.Json
+@using System.Text
+
+<h3>Listening History</h3>
+
+@if (listeningHistory != null)
+{
+    <div>
+        <h1>Your Top Songs from the Last 4 Weeks</h1>
+
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Number</th>
+                    <th>Track</th>
+                    <th>Artist</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in listeningHistory.items)
+                {
+                    i++;
+                    <tr>
+                        <td>@i</td>
+                        <td><a href="@item.preview_url">@item.name</a></td>
+                        <td>@string.Join(", ", item.artists.Select(a => a.name))</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+else
+{
+    <p>You must log in to view this data.</p>
+}
+
+@code {
+    int i = 0;
+    private ListeningHistoryResponse listeningHistory;
+    private string listeningHistoryEndpoint = "https://api.spotify.com/v1/me/top/tracks?time_range=short_term";
+
+    private string accessToken;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // Retrieve access token from localStorage
+            accessToken = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "accessToken");
+
+            if (!string.IsNullOrEmpty(accessToken))
+            {
+                await GetListeningHistory();
+            }
+            else
+            {
+                Console.WriteLine("Access token not found in localStorage.");
+            }
+        }
+        catch (Exception error)
+        {
+            Console.WriteLine(error);
+        }
+    }
+
+    private async Task GetListeningHistory()
+    {
+        try
+        {
+            using (var client = new HttpClient())
+            {
+                // Fetch user's listening history using the obtained access token
+                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {accessToken}");
+                var historyResponse = await client.GetAsync(listeningHistoryEndpoint);
+
+                if (historyResponse.IsSuccessStatusCode)
+                {
+                    var historyContent = await historyResponse.Content.ReadAsStringAsync();
+
+                    // Deserialize the response
+                    listeningHistory = JsonConvert.DeserializeObject<ListeningHistoryResponse>(historyContent);
+                }
+                else
+                {
+                    listeningHistory = null;
+                    Console.WriteLine($"Failed to retrieve artist information. Status code: {historyResponse.StatusCode}");
+                }
+            }
+        }
+        catch (Exception error)
+        {
+            Console.WriteLine(error);
+        }
+    }
+
+    private class ListeningHistoryResponse
+    {
+        public string href { get; set; }
+        public int limit { get; set; }
+        public string next { get; set; }
+        public int offset { get; set; }
+        public string previous { get; set; }
+        public int total { get; set; }
+        public List<ListeningHistoryItem> items { get; set; }
+    }
+
+    private class ListeningHistoryItem
+    {
+        public string name { get; set; }
+        public List<ArtistData> artists { get; set; }
+        public AlbumData album { get; set; }
+        public string preview_url { get; set; }
+    }
+
+    private class ArtistData
+    {
+        public string name { get; set; }
+    }
+
+    private class AlbumData
+    {
+        public string name { get; set; }
+    }
+}
