@@ -27,7 +27,13 @@
                 {
                     <tr>
                         <td><a href="artistdetails/@artist.Id">@artist.Name</a></td>
-                        <td>@string.Join(", ", artist.Genres)</td>
+                        @if (@artist.Genres.Count == 0)
+                        {
+                            <td>No genres on Spotify</td>
+                        } else
+                        {
+                            <td>@string.Join(", ", @artist.Genres)</td>
+                        }                        
                     </tr>
                 }
             </tbody>

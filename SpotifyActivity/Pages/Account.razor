@@ -10,7 +10,7 @@
 
 @if (authenticatedUser != null)
 {
-    <div>
+    <div class="p-4">
         <h4>User Information</h4>
         <p><strong>Display Name:</strong> @authenticatedUser.DisplayName</p>
         <p><strong>Email:</strong> @authenticatedUser.Email</p>
@@ -119,6 +119,8 @@ else
                 }
                 else
                 {
+                    // This needs inspected. Try to check if token is unauthorised
+                    await Logout();
                     authenticatedUser = null;
                 }
             }

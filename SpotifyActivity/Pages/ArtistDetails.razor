@@ -5,18 +5,22 @@
 @using System.Globalization
 @inject IJSRuntime JSRuntime
 
-<h3>Artist Details</h3>
-
-@if (artist != null)
-{
-    <div>
-        <img src="@artist.Images[0].URL" style="width:400px;height:400px;"/>
-
-        <p><strong>Name:</strong> @artist.Name</p>
-        <p><strong>Genres:</strong> @string.Join(", ", artist.Genres)</p>
-        <p><strong>Popularity:</strong> @artist.Popularity</p>
-        <p><strong>Followers:</strong> @artist.Followers.Total</p>
+@if (artist != null){
+    <style>main { background-image: url(@artist.Images[0].URL); background-repeat: no-repeat; background-size: cover ;}</style>
+    <div class="container">
+        <div class="row">
+            <div class="col-sm-4">
+                <h1>@artist.Name</h1>
+                @if (@artist.Genres.Count != 0)
+                {
+                    <p><strong>Genres:</strong> @string.Join(", ", @artist.Genres)</p>
+                }              
+                <p><strong>Popularity:</strong> @artist.Popularity</p>
+                <p><strong>Followers:</strong> @artist.Followers.Total</p>
+            </div
+        </div>
     </div>
+
 }
 else
 {
@@ -45,6 +49,7 @@ else
             if (!string.IsNullOrEmpty(ArtistId))
             {
                 await GetArtistInfo(ArtistId);
+
             }
         }
         catch (Exception error)
@@ -101,4 +106,5 @@ else
         public Double Height { get; set; }
         public Double Width { get; set; }
     }
+
 }
